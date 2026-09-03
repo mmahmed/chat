@@ -1,5 +1,13 @@
 # @chat-adapter/teams
 
+## 4.39.1
+
+### Patch Changes
+
+- 7609d8f: Validate external request targets before sending credentials, message content, or attachment requests.
+  - chat@4.39.1
+  - @chat-adapter/shared@4.39.1
+
 ## 4.39.0
 
 ### Patch Changes

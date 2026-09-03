@@ -1,5 +1,12 @@
 # @chat-adapter/web
 
+## 4.39.1
+
+### Patch Changes
+
+- chat@4.39.1
+- @chat-adapter/shared@4.39.1
+
 ## 4.39.0
 
 ### Patch Changes

@@ -1,5 +1,16 @@
 # @chat-adapter/slack
 
+## 4.39.1
+
+### Patch Changes
+
+- 78021c0: pass workspace context to suggested prompt resolvers in Agent view
+- 8b6d7f3: Reactivate Slack Agent Sessions when `startTyping` receives an empty status.
+- c2b6bff: Use the Slack bot user ID for bot-authored messages when a bot profile is available.
+- 7609d8f: Validate external request targets before sending credentials, message content, or attachment requests.
+  - chat@4.39.1
+  - @chat-adapter/shared@4.39.1
+
 ## 4.39.0
 
 ### Minor Changes

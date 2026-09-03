@@ -1,5 +1,11 @@
 # @chat-adapter/state-redis
 
+## 4.39.1
+
+### Patch Changes
+
+- chat@4.39.1
+
 ## 4.39.0
 
 ### Patch Changes

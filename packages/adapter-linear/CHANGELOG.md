@@ -1,5 +1,13 @@
 # @chat-adapter/linear
 
+## 4.39.1
+
+### Patch Changes
+
+- 3d2cb22: Keep Linear agent-session events on one stable thread and handle sessions created by automation or without a root comment.
+  - chat@4.39.1
+  - @chat-adapter/shared@4.39.1
+
 ## 4.39.0
 
 ### Patch Changes
