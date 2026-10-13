@@ -69,7 +69,14 @@ import {
   type TeamsActivityAttachment,
 } from "./attachments";
 import { BridgeHttpAdapter } from "./bridge-adapter";
-import { AUTO_SUBMIT_ACTION_ID, cardToAdaptiveCard } from "./cards";
+import {
+  AUTO_SUBMIT_ACTION_ID,
+  AUTO_SUBMIT_KEYS,
+  BUTTON_SUBMIT_KEYS,
+  cardInputValues,
+  cardToAdaptiveCard,
+  submitValueToString,
+} from "./cards";
 import { toAppOptions } from "./config";
 import { handleTeamsError } from "./errors";
 import { TeamsGraphReader } from "./graph-api";
@@ -98,7 +105,7 @@ import type {
 /**
  * Data payload from an Action.Submit button click. Teams merges the card's own
  * input values into the same flat object, so it carries more keys than this
- * names; `cardInputValues` reads those. Kept free of an index signature so a
+ * names; `cardInputValues` in `cards.ts` reads those. Kept free of an index signature so a
  * misspelled member read stays a compile error rather than `unknown`.
  */
 interface ActionSubmitData {
@@ -136,51 +143,6 @@ function resolveTeamsReactionType(
 ): MessageReactionType {
   const name = typeof emoji === "string" ? emoji : emoji.name;
   return TEAMS_REACTION_ALIASES[name] ?? name;
-}
-
-/**
- * Keys this adapter itself puts on a card's `Action.Submit`: `actionId` and
- * `value` come from the button (see `cards.ts`), `msteams` is the task/fetch
- * hint on dialog buttons. Teams merges the card's own inputs into the same flat
- * object, so every reader of that payload has to skip these — and they must all
- * skip the same set, or an input is reported down one path and dropped down
- * another. An input whose id collides with one of these is indistinguishable
- * from the adapter's own key and is skipped.
- */
-const RESERVED_SUBMIT_KEYS: ReadonlySet<string> = new Set([
-  "actionId",
-  "msteams",
-  "value",
-]);
-
-/**
- * The card's input values out of an Action.Submit payload, keyed by input id,
- * or `undefined` when the card carried none.
- *
- * Takes `object` so the callers' typed payloads need no cast. Numbers are
- * stringified the way `parseDialogSubmitValues` does, so a card action and a
- * dialog submit report the same shape.
- */
-function cardInputValues(
-  data: object | undefined
-): Record<string, string> | undefined {
-  if (!data) {
-    return undefined;
-  }
-
-  const values: Record<string, string> = {};
-  for (const [key, value] of Object.entries(data) as [string, unknown][]) {
-    if (RESERVED_SUBMIT_KEYS.has(key)) {
-      continue;
-    }
-    if (typeof value === "string") {
-      values[key] = value;
-    } else if (typeof value === "number") {
-      values[key] = String(value);
-    }
-  }
-
-  return Object.keys(values).length > 0 ? values : undefined;
 }
 
 export class TeamsAdapter implements Adapter<TeamsThreadId, unknown> {
@@ -699,7 +661,7 @@ export class TeamsAdapter implements Adapter<TeamsThreadId, unknown> {
     } = {
       actionId: actionValue.actionId,
       value: actionValue.value,
-      values: cardInputValues(actionValue),
+      values: cardInputValues(actionValue, BUTTON_SUBMIT_KEYS),
       user: this.authorFromActivity(activity),
       messageId: activity.replyToId || activity.id || "",
       threadId,
@@ -753,7 +715,7 @@ export class TeamsAdapter implements Adapter<TeamsThreadId, unknown> {
     } = {
       actionId: actionData.actionId,
       value: actionData.value,
-      values: cardInputValues(actionData),
+      values: cardInputValues(actionData, BUTTON_SUBMIT_KEYS),
       user: this.authorFromActivity(activity),
       messageId: activity.replyToId || activity.id || "",
       threadId,
@@ -790,7 +752,7 @@ export class TeamsAdapter implements Adapter<TeamsThreadId, unknown> {
 
     const webhookOptions = this.bridgeAdapter.getWebhookOptions(activity.id);
     const entries = (Object.entries(payload) as [string, unknown][]).filter(
-      ([key]) => !RESERVED_SUBMIT_KEYS.has(key)
+      ([key]) => !AUTO_SUBMIT_KEYS.has(key)
     );
 
     this.logger.debug("Auto-submit fan-out", {
@@ -805,7 +767,7 @@ export class TeamsAdapter implements Adapter<TeamsThreadId, unknown> {
       adapter: this as TeamsAdapter,
       raw: activity,
       // Every fanned-out action reports the whole form, not just its own input.
-      values: cardInputValues(payload),
+      values: cardInputValues(payload, AUTO_SUBMIT_KEYS),
     };
 
     for (const [key, val] of entries) {
@@ -813,7 +775,7 @@ export class TeamsAdapter implements Adapter<TeamsThreadId, unknown> {
         {
           ...baseEvent,
           actionId: key,
-          value: typeof val === "string" ? val : undefined,
+          value: submitValueToString(val),
         },
         webhookOptions
       );
@@ -852,7 +814,7 @@ export class TeamsAdapter implements Adapter<TeamsThreadId, unknown> {
     } = {
       actionId: actionData.actionId || "dialog.open",
       value: actionData.value,
-      values: cardInputValues(actionData),
+      values: cardInputValues(actionData, BUTTON_SUBMIT_KEYS),
       user: this.authorFromActivity(activity),
       messageId: activity.replyToId || activity.id || "",
       threadId,

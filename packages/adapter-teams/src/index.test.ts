@@ -2862,18 +2862,44 @@ describe("card input values on actions", () => {
     expect(lastAction(chat).values).toBeUndefined();
   });
 
-  it("skips an input whose id collides with a reserved key", async () => {
+  it("delivers an auto-submit input named value, which only a button reserves", async () => {
     const { adapter, chat } = await createAdapter();
 
-    // Teams flattens inputs into the adapter's own payload, so an input named
-    // `value` is indistinguishable from the button's value and is dropped.
+    // The auto-injected submit carries no button value, so `value` here can
+    // only be a card input.
+    adapter.submitAsMessage(activity, {
+      actionId: "__auto_submit",
+      value: "opt-1",
+      priority: 2,
+    });
+
+    const events = (
+      chat.processAction as unknown as ReturnType<typeof vi.fn>
+    ).mock.calls.map(([event]) => event);
+    expect(events).toHaveLength(2);
+    expect(events).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ actionId: "value", value: "opt-1" }),
+        expect.objectContaining({ actionId: "priority", value: "2" }),
+      ])
+    );
+    for (const event of events) {
+      expect(event.values).toEqual({ value: "opt-1", priority: "2" });
+    }
+  });
+
+  it("reads a button click's inputs without taking the button's value as one", async () => {
+    const { adapter, chat } = await createAdapter();
+
     adapter.submitAsMessage(activity, {
       actionId: "approve",
       value: "plan-1",
       notes: "ship it",
     });
 
-    expect(lastAction(chat).values).toEqual({ notes: "ship it" });
+    const action = lastAction(chat);
+    expect(action.value).toBe("plan-1");
+    expect(action.values).toEqual({ notes: "ship it" });
   });
 
   it("keeps only string and number input values", async () => {

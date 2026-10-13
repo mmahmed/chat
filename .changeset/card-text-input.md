@@ -9,6 +9,8 @@ feat(teams): let a card carry a text input
 
 `ActionEvent` gains `values?: Record<string, string>`, the card's own input values keyed by input ID. It has the same shape as `ModalSubmitEvent.values`. The Teams adapter fills it from the `Action.Submit` payload, and it is absent on platforms with no card inputs. A button's `callbackUrl` POST now carries `values` too, so a webhook-driven flow with no `onAction` handler still receives what was typed.
 
-An input is required unless `optional` is set, and Teams validates every input on the card before it lets any button through, so mark it `optional` unless the buttons beside it should be blocked until it is filled. That validation is client-side, so treat `values` as user input and validate it in the handler.
+An input is required unless `optional` is set, and Teams validates every input on the card before it lets a button through, so mark it `optional` unless the buttons beside it should be blocked until it is filled. That validation is client-side, so treat `values` as user input and validate it in the handler. A Teams button with `actionType: "modal"` now renders with `associatedInputs: "none"`, so it opens its dialog without waiting on the card's inputs and doesn't send them.
+
+Teams merges card inputs into the button's own submit data, so a card `TextInput` with the ID `actionId`, `value`, or `msteams` throws a `ValidationError` when the card is rendered, and the `@chat-adapter/teams/cards` subpath throws an `Error`. Modal inputs can still use `actionId` and `value`.
 
 `CardChild` gained a member, so an adapter outside this repo that exhausts the union with a `never` check needs a `text_input` case. Every in-repo converter reaches it through a `default:` branch instead, so none needed changing.

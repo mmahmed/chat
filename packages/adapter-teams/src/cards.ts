@@ -9,6 +9,7 @@ import {
   createEmojiConverter,
   mapButtonStyle,
   cardToFallbackText as sharedCardToFallbackText,
+  ValidationError,
 } from "@chat-adapter/shared";
 import type {
   ActionArray,
@@ -73,6 +74,70 @@ const ADAPTIVE_CARD_VERSION = "1.5" as const;
  * Used when a card has select/radio_select inputs but no submit button.
  */
 export const AUTO_SUBMIT_ACTION_ID = "__auto_submit";
+
+/**
+ * Keys a button puts on its `Action.Submit` data (see `convertButtonToAction`):
+ * `actionId` and `value` from the button, `msteams` as the task/fetch hint on
+ * dialog buttons. Teams merges the card's inputs into the same flat object, so
+ * a reader of a button click skips these to find the inputs.
+ */
+export const BUTTON_SUBMIT_KEYS: ReadonlySet<string> = new Set([
+  "actionId",
+  "msteams",
+  "value",
+]);
+
+/**
+ * Keys on the auto-injected submit's data. It never carries a button `value`,
+ * so an input with that ID is a real input here and must not be skipped.
+ */
+export const AUTO_SUBMIT_KEYS: ReadonlySet<string> = new Set([
+  "actionId",
+  "msteams",
+]);
+
+/**
+ * The card's input values out of an Action.Submit payload, keyed by input id,
+ * or `undefined` when the card carried none.
+ *
+ * Numbers are stringified the way `parseDialogSubmitValues` does, so a card
+ * action and a dialog submit report the same shape.
+ */
+export function cardInputValues(
+  data: object | undefined,
+  reservedKeys: ReadonlySet<string>
+): Record<string, string> | undefined {
+  if (!data) {
+    return undefined;
+  }
+
+  const values: Record<string, string> = {};
+  for (const [key, value] of Object.entries(data) as [string, unknown][]) {
+    if (reservedKeys.has(key)) {
+      continue;
+    }
+    const text = submitValueToString(value);
+    if (text !== undefined) {
+      values[key] = text;
+    }
+  }
+
+  return Object.keys(values).length > 0 ? values : undefined;
+}
+
+/**
+ * A single submitted input value as a string, or `undefined` for anything
+ * other than a string or number.
+ */
+export function submitValueToString(value: unknown): string | undefined {
+  if (typeof value === "string") {
+    return value;
+  }
+  if (typeof value === "number") {
+    return String(value);
+  }
+  return undefined;
+}
 
 /**
  * Convert a CardElement to a Teams Adaptive Card.
@@ -161,6 +226,13 @@ function convertChildToAdaptive(child: CardChild): ConvertResult {
     case "table":
       return { elements: convertTableToElements(child), actions: [] };
     case "text_input":
+      // Card-only: a modal's submit data doesn't carry a button's actionId or value.
+      if (BUTTON_SUBMIT_KEYS.has(child.id)) {
+        throw new ValidationError(
+          "teams",
+          `A card TextInput can't use the ID "${child.id}", which the adapter reserves for the button's own submit data`
+        );
+      }
       return { elements: [textInputToAdaptive(child)], actions: [] };
     default: {
       const text = cardChildToFallbackText(child);
@@ -197,8 +269,9 @@ function convertTextToElement(element: TextElement): TextBlock {
  * should look like the dialog that asks for one.
  *
  * An input is required unless `optional` is set. Teams validates every input on
- * the surface before it lets any `Action.Submit` through, so on a card a
- * required input also gates the buttons beside it.
+ * the surface before it lets an `Action.Submit` through, so on a card a
+ * required input also gates the buttons beside it, except a dialog button,
+ * which sets `associatedInputs: "none"`.
  */
 export function textInputToAdaptive(element: TextInputElement): TextInput {
   const options: TextInputOptions = {
@@ -338,6 +411,12 @@ function convertButtonToAction(button: ButtonElement): SubmitAction {
   }
 
   const options: SubmitActionOptions = { ...actionOptions(button), data };
+  // Teams validates every input on the card before a submit goes through, so
+  // without this a required TextInput would stop the button opening its dialog.
+  // The dialog collects its own input, so the card's inputs aren't sent either.
+  if (button.actionType === "modal") {
+    options.associatedInputs = "none";
+  }
   return new SubmitAction(options);
 }
 

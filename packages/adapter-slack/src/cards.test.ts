@@ -15,6 +15,7 @@ import {
   Select,
   SelectOption,
   Table,
+  TextInput,
 } from "chat";
 import { describe, expect, it } from "vitest";
 import { cardToBlockKit, cardToFallbackText } from "./cards";
@@ -308,6 +309,30 @@ describe("cardToBlockKit", () => {
     expect(blocks[3].type).toBe("divider");
     expect(blocks[4].type).toBe("section");
     expect(blocks[5].type).toBe("actions");
+  });
+});
+
+describe("cardToBlockKit with text inputs", () => {
+  it("renders the label as escaped mrkdwn with emoji converted", () => {
+    const card = Card({
+      children: [
+        TextInput({
+          id: "notes",
+          label: "{{emoji:memo}} Notes <optional> & more",
+        }),
+      ],
+    });
+    const blocks = cardToBlockKit(card);
+
+    expect(blocks).toEqual([
+      {
+        type: "section",
+        text: {
+          type: "mrkdwn",
+          text: ":memo: Notes &lt;optional&gt; &amp; more",
+        },
+      },
+    ]);
   });
 });
 

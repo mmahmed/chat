@@ -1,3 +1,4 @@
+import { ValidationError } from "@chat-adapter/shared";
 import type { ITable, ITextBlock, ITextInput } from "@microsoft/teams.cards";
 import {
   Actions,
@@ -331,6 +332,24 @@ describe("cardToAdaptiveCard with modal buttons", () => {
         msteams: { type: "task/fetch" },
       },
     });
+  });
+
+  it("lets a dialog button skip the card's input validation", () => {
+    const card = Card({
+      children: [
+        TextInput({ id: "reason", label: "Reason" }),
+        Actions([
+          Button({ id: "deny", label: "Deny" }),
+          Button({ id: "details", label: "Details", actionType: "modal" }),
+        ]),
+      ],
+    });
+    const [deny, details] = cardToAdaptiveCard(card).actions ?? [];
+
+    expect(details).toMatchObject({ associatedInputs: "none" });
+    expect(JSON.parse(JSON.stringify(deny))).not.toHaveProperty(
+      "associatedInputs"
+    );
   });
 });
 
@@ -798,6 +817,57 @@ describe("cardToAdaptiveCard with TextInput", () => {
     ).body?.[0] as ITextInput;
 
     expect(renderInput(options)).toEqual(inDialog);
+  });
+
+  it.each([
+    "actionId",
+    "value",
+    "msteams",
+  ])("refuses a card input with the reserved ID %s", (id) => {
+    expect(() => renderInput({ id, label: "Notes" })).toThrow(ValidationError);
+    expect(() => renderInput({ id, label: "Notes" })).toThrow(
+      `can't use the ID "${id}"`
+    );
+    expect(() =>
+      primitivesCardToAdaptiveCard({
+        children: [{ id, label: "Notes", type: "text_input" }],
+        type: "card",
+      })
+    ).toThrow(`can't use the ID "${id}"`);
+  });
+
+  it("still lets a dialog input use an ID a card reserves", () => {
+    const inDialog = modalToAdaptiveCard(
+      Modal({
+        callbackId: "cb",
+        title: "Feedback",
+        children: [TextInput({ id: "value", label: "Value" })],
+      }),
+      "ctx",
+      "cb"
+    ).body?.[0] as ITextInput;
+
+    expect(inDialog).toMatchObject({ type: "Input.Text", id: "value" });
+  });
+
+  it("keeps a zero maxLength and empty strings on both subpaths", () => {
+    const options: TextInputOptions = {
+      id: "notes",
+      label: "Notes",
+      maxLength: 0,
+      placeholder: "",
+      initialValue: "",
+    };
+    const primitives = primitivesCardToAdaptiveCard({
+      children: [{ ...options, type: "text_input" }],
+      type: "card",
+    }).body[0];
+
+    const expected = { maxLength: 0, placeholder: "", value: "" };
+    expect(primitives).toMatchObject(expected);
+    expect(JSON.parse(JSON.stringify(renderInput(options)))).toMatchObject(
+      expected
+    );
   });
 
   it("falls back to the input label", () => {

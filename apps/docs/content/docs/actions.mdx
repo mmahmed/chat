@@ -90,15 +90,15 @@ On Teams, a card can carry a [`TextInput`](/docs/cards). What the user typed arr
 
 ```typescript title="lib/bot.ts" lineNumbers
 bot.onAction("approve", async (event) => {
-  const notes = event.values?.notes?.trim();
-  // Typed by the user, so post it as a code span rather than raw markdown.
-  await event.thread?.post(notes ? `Approved with notes: \`${notes}\`` : "Approved");
+  const notes = event.values?.notes?.trim().slice(0, 500) ?? "";
+  await recordApproval({ userId: event.user.userId, notes });
+  await event.thread?.post("Approved");
 });
 ```
 
-`values` is absent on platforms that cannot put an input on a card, and on cards that have none.
+`recordApproval` stands in for your own storage or deploy logic. `values` is absent on platforms that cannot put an input on a card, and on cards that have none.
 
-Treat `event.values` as untrusted user input. Teams enforces `optional` and `maxLength` in its own UI, but a value can still arrive missing, empty, or longer than the limit, so validate it in the handler. If you echo a value into a message unescaped, the user can put markdown, such as a link, into a message that appears to come from the bot.
+Treat `event.values` as untrusted user input. Teams enforces `optional` and `maxLength` in its own UI, but a value can still arrive missing, empty, or longer than the limit, so validate it in the handler. If you post a value back into the thread, the platform renders any markdown the user typed, such as a link, in a message that appears to come from the bot. Wrapping the value in a code span or sending it as `{ raw }` does not prevent this, so store or process the value instead of echoing it.
 
 ## Open a modal from an action
 
@@ -175,8 +175,8 @@ If the card carried inputs, the payload includes what the user typed as `"values
   "actionId": "approve",
   "values": { "notes": "ship it" },
   "user": { "id": "U123", "name": "alice" },
-  "threadId": "teams:19%3Aabc:1700000000",
-  "messageId": "1700000000"
+  "threadId": "teams:MTk6YWJjMTIzQHRocmVhZC50YWN2Mg:aHR0cHM6Ly9zbWJhLnRyYWZmaWNtYW5hZ2VyLm5ldC9hbWVyLw",
+  "messageId": "1700000012345"
 }
 ```
 

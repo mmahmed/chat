@@ -249,7 +249,7 @@ A text box on the card itself, so a user can type a reply without opening a [mod
 </Card>
 ```
 
-What the user typed arrives on the action as [`event.values`](/docs/actions), keyed by input ID. Teams validates every input on the card before it lets any button through, so mark an input `optional` unless the buttons beside it should stay blocked until it is filled. The Teams client enforces that validation, so treat `event.values` as user input and validate it in the handler too. Pair the input with a `Button`, because the input can't submit anything on its own.
+What the user typed arrives on the action as [`event.values`](/docs/actions), keyed by input ID. Teams validates every input on the card before it lets a button through, so mark an input `optional` unless the buttons beside it should stay blocked until it is filled. A button that opens a modal isn't blocked. On Teams, `actionId`, `value`, and `msteams` are reserved and can't be used as a card input's ID. The Teams client enforces that validation, so treat `event.values` as user input and validate it in the handler too. Pair the input with a `Button`, because the input can't submit anything on its own.
 
 ### Table
 

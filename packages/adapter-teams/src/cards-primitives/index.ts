@@ -111,19 +111,36 @@ function convertImage(element: TeamsImageElement): unknown {
   };
 }
 
-// Same mapping as the dialog converter in modals-primitives, so a text input
-// looks the same on a card as it does in a task module. An input is required
-// unless `optional` is set, and Teams validates every input on the card before
-// it lets any Action.Submit through.
+// Input IDs that would collide with a button's own `Action.Submit` data. Teams
+// merges the card's inputs into that data, so an input named `actionId` would
+// replace the clicked button's ID with whatever the user typed.
+const RESERVED_INPUT_IDS: ReadonlySet<string> = new Set([
+  "actionId",
+  "msteams",
+  "value",
+]);
+
+// Same mapping as `textInputToAdaptive` in the full adapter's cards.ts, so both
+// subpaths emit the same element. An input is required unless `optional` is
+// set, and Teams validates every input on the card before it lets an
+// Action.Submit through.
 function convertTextInput(input: TeamsTextInputElement): unknown {
+  if (RESERVED_INPUT_IDS.has(input.id)) {
+    throw new Error(
+      `A card TextInput can't use the ID "${input.id}", which is reserved for the button's own submit data`
+    );
+  }
+
   return {
     id: input.id,
     isMultiline: input.multiline ?? false,
     isRequired: !(input.optional ?? false),
     label: convertTeamsEmojiPlaceholders(input.label),
-    ...(input.maxLength ? { maxLength: input.maxLength } : {}),
-    ...(input.placeholder ? { placeholder: input.placeholder } : {}),
-    ...(input.initialValue ? { value: input.initialValue } : {}),
+    ...(input.maxLength === undefined ? {} : { maxLength: input.maxLength }),
+    ...(input.placeholder === undefined
+      ? {}
+      : { placeholder: input.placeholder }),
+    ...(input.initialValue === undefined ? {} : { value: input.initialValue }),
     type: "Input.Text",
   };
 }
